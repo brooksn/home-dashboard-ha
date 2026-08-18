@@ -36,7 +36,7 @@ jobs:
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
-          tags: tag:github-actions
+          tags: tag:ci
       - name: Refresh Home Dashboard update information
         if: steps.configuration.outputs.configured == 'true'
         shell: bash

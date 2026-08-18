@@ -25,8 +25,8 @@ Before enabling the workflow, add these encrypted GitHub Actions secrets to this
   `http://homeassistant.<tailnet>.ts.net:8123`.
 - `HOME_ASSISTANT_TOKEN`: a Home Assistant long-lived access token from an administrator account.
 - `TS_OAUTH_CLIENT_ID` and `TS_AUDIENCE`: the client ID and audience for a Tailscale federated
-  identity with writable `auth_keys` scope, restricted to `tag:github-actions`. No Tailscale
+  identity with writable `auth_keys` scope, restricted to `tag:ci`. No Tailscale
   client secret is stored in GitHub.
 
-In the tailnet access policy, allow `tag:github-actions` to connect only to the Home Assistant
+In the tailnet access policy, allow `tag:ci` to connect only to the Home Assistant
 node on TCP port `8123`. The workflow stays a successful no-op until all four secrets are set.
