@@ -54,4 +54,4 @@ The app configuration persists and is reapplied on Home Assistant restarts, so n
 
 ## Updates
 
-Each dashboard release publishes a signed private image. When the source repository's metadata-handoff credentials are configured, it also updates this app metadata and requests a private Home Assistant update scan. With automatic updates enabled, Home Assistant pulls the matching image and retains `/data`; otherwise use **Settings → System → Updates → Check for updates**.
+Each dashboard release publishes a signed private image. When the source repository's metadata-handoff credentials are configured, it updates this app metadata and triggers a private GitHub Actions workflow. The workflow refreshes `update.home_dashboard_update`, installs the expected version, and verifies it before marking the source release deployed. Home Assistant retains `/data` through the image update.

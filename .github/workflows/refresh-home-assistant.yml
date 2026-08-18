@@ -14,12 +14,18 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     env:
       HOME_ASSISTANT_URL: ${{ secrets.HOME_ASSISTANT_URL }}
       HOME_ASSISTANT_TOKEN: ${{ secrets.HOME_ASSISTANT_TOKEN }}
       TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
       TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
     steps:
+      - uses: actions/checkout@v5
+      - id: version
+        name: Read expected app version
+        run: echo "value=$(awk '/^version:/{print $2; exit}' home-dashboard/config.yaml)" >> "$GITHUB_OUTPUT"
       - id: configuration
         name: Check private connection configuration
         shell: bash
@@ -37,12 +43,138 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:ci
-      - name: Refresh Home Dashboard update information
+      - id: install
+        name: Discover and install Home Dashboard
         if: steps.configuration.outputs.configured == 'true'
         shell: bash
+        env:
+          EXPECTED_VERSION: ${{ steps.version.outputs.value }}
         run: |
+          set -euo pipefail
+          api_base="${HOME_ASSISTANT_URL%/}/api"
+          entity_id="update.home_dashboard_update"
+
+          refresh_update() {
+            curl --fail-with-body --retry 3 --retry-all-errors \
+              --header "Authorization: Bearer $HOME_ASSISTANT_TOKEN" \
+              --header "Content-Type: application/json" \
+              --data "{\"entity_id\":\"${entity_id}\"}" \
+              "${api_base}/services/homeassistant/update_entity" >/dev/null
+          }
+
+          update_state() {
+            curl --fail-with-body --retry 3 --retry-all-errors \
+              --header "Authorization: Bearer $HOME_ASSISTANT_TOKEN" \
+              "${api_base}/states/${entity_id}"
+          }
+
+          for attempt in {1..24}; do
+            refresh_update
+            state=$(update_state)
+            installed=$(jq -r '.attributes.installed_version // empty' <<<"$state")
+            latest=$(jq -r '.attributes.latest_version // empty' <<<"$state")
+            echo "discovery ${attempt}/24: installed=${installed:-unknown} latest=${latest:-unknown} expected=${EXPECTED_VERSION}"
+            if [[ "$installed" == "$EXPECTED_VERSION" ]]; then
+              exit 0
+            fi
+            if [[ "$latest" == "$EXPECTED_VERSION" ]]; then
+              break
+            fi
+            sleep 15
+          done
+
+          if [[ "${latest:-}" != "$EXPECTED_VERSION" ]]; then
+            echo "Home Assistant did not discover ${EXPECTED_VERSION}" >&2
+            exit 1
+          fi
+
           curl --fail-with-body --retry 3 --retry-all-errors \
             --header "Authorization: Bearer $HOME_ASSISTANT_TOKEN" \
             --header "Content-Type: application/json" \
-            --data '{"entity_id":"update.home_dashboard_update"}' \
-            "${HOME_ASSISTANT_URL%/}/api/services/homeassistant/update_entity"
+            --data "{\"entity_id\":\"${entity_id}\",\"version\":\"${EXPECTED_VERSION}\"}" \
+            "${api_base}/services/update/install" >/dev/null
+
+          for attempt in {1..40}; do
+            state=$(update_state)
+            installed=$(jq -r '.attributes.installed_version // empty' <<<"$state")
+            latest=$(jq -r '.attributes.latest_version // empty' <<<"$state")
+            echo "installation ${attempt}/40: installed=${installed:-unknown} latest=${latest:-unknown} expected=${EXPECTED_VERSION}"
+            if [[ "$installed" == "$EXPECTED_VERSION" ]]; then
+              exit 0
+            fi
+            sleep 15
+          done
+
+          echo "Home Assistant did not install ${EXPECTED_VERSION}" >&2
+          exit 1
+
+  report:
+    needs: refresh
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - id: configuration
+        name: Check deployment reporting configuration
+        env:
+          APP_CLIENT_ID: ${{ vars.DEPLOYMENT_STATUS_APP_CLIENT_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.DEPLOYMENT_STATUS_APP_PRIVATE_KEY }}
+        run: |
+          if [[ -n "$APP_CLIENT_ID" && -n "$APP_PRIVATE_KEY" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Deployment reporting skipped; configure the documented GitHub App credentials."
+          fi
+      - id: version
+        if: steps.configuration.outputs.configured == 'true'
+        name: Read expected app version
+        run: echo "value=$(awk '/^version:/{print $2; exit}' home-dashboard/config.yaml)" >> "$GITHUB_OUTPUT"
+      - id: reporter-token
+        if: steps.configuration.outputs.configured == 'true'
+        name: Create deployment-status token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.DEPLOYMENT_STATUS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DEPLOYMENT_STATUS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: home-dashboard
+          permission-deployments: write
+      - name: Report final deployment status
+        if: steps.configuration.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ steps.reporter-token.outputs.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+          REFRESH_RESULT: ${{ needs.refresh.result }}
+          LOG_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          deployment_id=""
+          for attempt in {1..12}; do
+            deployment_id=$(gh api --method GET "repos/${GITHUB_REPOSITORY_OWNER}/home-dashboard/deployments?ref=v${VERSION}&environment=Home%20Assistant&per_page=1" --jq '.[0].id // empty')
+            if [[ -n "$deployment_id" ]]; then
+              break
+            fi
+            sleep 10
+          done
+
+          if [[ -z "$deployment_id" ]]; then
+            echo "No Home Assistant deployment found for v${VERSION}" >&2
+            exit 1
+          fi
+
+          if [[ "$REFRESH_RESULT" == "success" ]]; then
+            state=success
+            description="Home Assistant installed Home Dashboard v${VERSION}."
+          else
+            state=failure
+            description="Home Assistant did not install Home Dashboard v${VERSION}."
+          fi
+
+          payload=$(jq -n --arg state "$state" --arg description "$description" --arg log_url "$LOG_URL" '{
+            state: $state,
+            description: $description,
+            log_url: $log_url,
+            auto_inactive: false
+          }')
+          gh api --method POST "repos/${GITHUB_REPOSITORY_OWNER}/home-dashboard/deployments/${deployment_id}/statuses" --input - <<<"$payload"

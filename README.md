@@ -14,7 +14,7 @@ The private application source, release workflow, and image build context are ma
 
 ## Refresh Home Assistant after a release
 
-When its secrets are configured, the `Refresh Home Assistant app updates` workflow joins the tailnet briefly, asks Home Assistant to refresh `update.home_dashboard_update`, then disconnects. The app's existing automatic-update setting installs the new version once discovered.
+Every signed dashboard release creates a **Home Assistant** deployment in the private source repository. When its secrets are configured, the `Refresh Home Assistant app updates` workflow joins the tailnet briefly, refreshes `update.home_dashboard_update` until the expected version is visible, calls `update.install`, and waits until Home Assistant reports that version as installed. It then marks the source deployment successful or failed, with a link to this workflow's log.
 
 Before enabling the workflow, add these encrypted GitHub Actions secrets to this repository:
 
@@ -26,3 +26,12 @@ Before enabling the workflow, add these encrypted GitHub Actions secrets to this
   client secret is stored in GitHub.
 
 In the tailnet access policy, allow `tag:ci` to connect only to the Home Assistant node on TCP port `8123`. The workflow is skipped until all four secrets are set.
+
+## Deployment status reporting
+
+Create a second GitHub App installed on **only** `brooksn/home-dashboard`. Grant it only repository **Deployments: Read and write** permission. In this metadata repository's Actions settings, add:
+
+- Repository variable `DEPLOYMENT_STATUS_APP_CLIENT_ID`: the App's client ID.
+- Repository secret `DEPLOYMENT_STATUS_APP_PRIVATE_KEY`: a generated private key for that App.
+
+This App can update deployment status only; it cannot read or write source code. The workflow exchanges its private key for a short-lived installation token, then records `success` only after `update.home_dashboard_update` reports the requested version installed.
