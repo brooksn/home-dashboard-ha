@@ -54,4 +54,4 @@ The app configuration persists and is reapplied on Home Assistant restarts, so n
 
 ## Updates
 
-Refresh the App Store after a new version is published, then select Update. Home Assistant will pull the matching private image and retain `/data`.
+Each signed dashboard release updates this app metadata and triggers a private Home Assistant update scan. With automatic updates enabled, Home Assistant pulls the matching private image and retains `/data`. Otherwise use **Settings → System → Updates → Check for updates** and select the app update.
