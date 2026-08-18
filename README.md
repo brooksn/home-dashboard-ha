@@ -10,4 +10,4 @@ Add this repository in **Settings → Apps → App Store → ⋮ → Repositorie
 https://github.com/brooksn/home-dashboard-ha
 ```
 
-The private application source is maintained separately.
+The private application source, release workflow, and image build context are maintained separately. This public repository is the only Git repository Home Assistant needs to fetch.
