@@ -6,8 +6,8 @@ Home Dashboard is a fullscreen household calendar display for a trusted local-ne
 
 1. Configure Home Assistant with credentials for the private `ghcr.io` registry.
 2. Add `https://github.com/brooksn/home-dashboard-ha` in **Settings → Apps → App Store → ⋮ → Repositories**.
-3. In Google Cloud, create a Web OAuth client, enable Google Calendar API, and register `https://<your-private-tailscale-name>/api/admin/google/oauth/callback` as its exact redirect URI.
-4. Install **Home Dashboard**, enter Google client ID/secret and `external_url` set to the matching Tailscale HTTPS origin. The OpenAI key is optional; retained viewer/admin password options are ignored.
+3. In Google Cloud, create a Web OAuth client, enable Google Calendar API, and register `https://home-dashboard.tailab0c1.ts.net/api/admin/google/oauth/callback` as its exact redirect URI.
+4. Install **Home Dashboard**, enter Google client ID/secret and `external_url` set to `https://home-dashboard.tailab0c1.ts.net`. The OpenAI key is optional; retained viewer/admin password options are ignored.
 5. Open `/admin/calendar` at that HTTPS address, connect each household Google account, select calendars, then open the trusted LAN display URL on the tablet.
 
 The app stores its SQLite database in its Supervisor-managed `/data` directory, so it persists through restarts and image updates.
@@ -48,7 +48,7 @@ For a private, trusted HTTPS origin, use the [Tailscale with features](https://g
    ```
 
 3. In the console's **Services** area, set the `svc:home-dashboard` required port to `tcp:443`, then approve the tagged Home Assistant node as service host if prompted. This is the TLS listener; the service target stays on `8088`.
-4. Restart the feature app and browse to `https://home-dashboard.<tailnet-name>.ts.net/` from a tablet connected to the tailnet. Do not enable Funnel.
+4. Restart the feature app and browse to `https://home-dashboard.tailab0c1.ts.net/` from a tablet connected to the tailnet. Do not enable Funnel.
 
 The app configuration persists and is reapplied on Home Assistant restarts, so no SSH startup script is needed. The original `:8088` endpoint remains plain HTTP and LAN-only.
 
