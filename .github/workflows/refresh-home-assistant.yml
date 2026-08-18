@@ -91,7 +91,7 @@ jobs:
           curl --fail-with-body --retry 3 --retry-all-errors \
             --header "Authorization: Bearer $HOME_ASSISTANT_TOKEN" \
             --header "Content-Type: application/json" \
-            --data "{\"entity_id\":\"${entity_id}\",\"version\":\"${EXPECTED_VERSION}\"}" \
+            --data "{\"entity_id\":\"${entity_id}\"}" \
             "${api_base}/services/update/install" >/dev/null
 
           for attempt in {1..40}; do
