@@ -1,0 +1,47 @@
+name: Refresh Home Assistant app updates
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - home-dashboard/config.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      HOME_ASSISTANT_URL: ${{ secrets.HOME_ASSISTANT_URL }}
+      HOME_ASSISTANT_TOKEN: ${{ secrets.HOME_ASSISTANT_TOKEN }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+    steps:
+      - id: configuration
+        name: Check private connection configuration
+        shell: bash
+        run: |
+          if [[ -n "$HOME_ASSISTANT_URL" && -n "$HOME_ASSISTANT_TOKEN" && -n "$TS_OAUTH_CLIENT_ID" && -n "$TS_OAUTH_SECRET" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Home Assistant refresh skipped; configure the documented GitHub Secrets."
+          fi
+      - name: Join the tailnet
+        if: steps.configuration.outputs.configured == 'true'
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:github-actions
+      - name: Refresh Home Dashboard update information
+        if: steps.configuration.outputs.configured == 'true'
+        shell: bash
+        run: |
+          curl --fail-with-body --retry 3 --retry-all-errors \
+            --header "Authorization: Bearer $HOME_ASSISTANT_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"entity_id":"update.home_dashboard_update"}' \
+            "${HOME_ASSISTANT_URL%/}/api/services/homeassistant/update_entity"
