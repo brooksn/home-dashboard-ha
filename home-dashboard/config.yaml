@@ -15,7 +15,7 @@ webui: http://[HOST]:[PORT:8080]/
 ports:
   8080/tcp: 8088
 ports_description:
-  8080/tcp: Dashboard web interface (LAN only)
+  8080/tcp: Dashboard web interface (plain HTTP; use a private Tailscale Service for HTTPS)
 options:
   timezone: America/Los_Angeles
   calendar_openai_model: gpt-5.4-mini
