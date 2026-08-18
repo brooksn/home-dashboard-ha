@@ -10,11 +10,11 @@ Add this repository in **Settings → Apps → App Store → ⋮ → Repositorie
 https://github.com/brooksn/home-dashboard-ha
 ```
 
-The private application source, release workflow, and image build context are maintained separately. Each signed source release updates this repository's app version automatically; this public repository is the only Git repository Home Assistant needs to fetch.
+The private application source, release workflow, and image build context are maintained separately. A release updates this repository's app version automatically when the source repository's scoped GitHub App credentials are configured; otherwise update `home-dashboard/config.yaml` manually. This public repository is the only Git repository Home Assistant needs to fetch.
 
 ## Refresh Home Assistant after a release
 
-The `Refresh Home Assistant app updates` workflow runs whenever the app metadata version changes. It joins the tailnet briefly, asks Home Assistant to refresh `update.home_dashboard_update`, then disconnects. The app's existing automatic-update setting installs the new version once discovered.
+When its secrets are configured, the `Refresh Home Assistant app updates` workflow joins the tailnet briefly, asks Home Assistant to refresh `update.home_dashboard_update`, then disconnects. The app's existing automatic-update setting installs the new version once discovered.
 
 Before enabling the workflow, add these encrypted GitHub Actions secrets to this repository:
 

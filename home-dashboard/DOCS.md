@@ -1,16 +1,16 @@
 # Home Dashboard
 
-Home Dashboard is a fullscreen household calendar display for a trusted local-network Android tablet.
+Home Dashboard is a fullscreen, private, read-only Google Calendar display for a household tablet.
 
 ## Install
 
 1. Configure Home Assistant with credentials for the private `ghcr.io` registry.
 2. Add `https://github.com/brooksn/home-dashboard-ha` in **Settings → Apps → App Store → ⋮ → Repositories**.
 3. In Google Cloud, create a Web OAuth client, enable Google Calendar API, and register `https://home-dashboard.tailab0c1.ts.net/api/admin/google/oauth/callback` as its exact redirect URI.
-4. Install **Home Dashboard**, enter Google client ID/secret and `external_url` set to `https://home-dashboard.tailab0c1.ts.net`. The OpenAI key is optional; retained viewer/admin password options are ignored.
-5. Open `/admin/calendar` at that HTTPS address, connect each household Google account, select calendars, then open the trusted LAN display URL on the tablet.
+4. Install **Home Dashboard**, enter the Google client ID/secret, and set `external_url` to `https://home-dashboard.tailab0c1.ts.net`. Add an OpenAI API key only for AI curation and daily summaries.
+5. Open `https://home-dashboard.tailab0c1.ts.net/admin/calendar`, connect Google, select calendars, assign **Brooks personal**, **Brooks work**, or **Rose**, then save.
 
-The app stores its SQLite database in its Supervisor-managed `/data` directory, so it persists through restarts and image updates.
+The app stores its database, refresh tokens, selected calendars, and cached events in Supervisor-managed `/data`. Nearby, back-to-back, and overlapping events for the same person are shown as one busy block, even when AI processing is unavailable.
 
 ## Backup and restore
 
@@ -54,4 +54,4 @@ The app configuration persists and is reapplied on Home Assistant restarts, so n
 
 ## Updates
 
-Each signed dashboard release updates this app metadata and triggers a private Home Assistant update scan. With automatic updates enabled, Home Assistant pulls the matching private image and retains `/data`. Otherwise use **Settings → System → Updates → Check for updates** and select the app update.
+Each dashboard release publishes a signed private image. When the source repository's metadata-handoff credentials are configured, it also updates this app metadata and requests a private Home Assistant update scan. With automatic updates enabled, Home Assistant pulls the matching image and retains `/data`; otherwise use **Settings → System → Updates → Check for updates**.
