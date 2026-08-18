@@ -1,0 +1,22 @@
+configuration:
+  timezone:
+    name: Timezone
+    description: IANA timezone used for calendar rendering.
+  viewer_password:
+    name: Viewer password
+    description: Password for the dashboard display.
+  admin_password:
+    name: Administrator password
+    description: Password for calendar administration.
+  google_client_id:
+    name: Google client ID
+  google_client_secret:
+    name: Google client secret
+  google_refresh_token:
+    name: Google refresh token
+  openai_api_key:
+    name: OpenAI API key
+    description: Optional key for calendar coordination.
+  calendar_openai_model:
+    name: OpenAI model
+    description: Optional model override for calendar coordination.
