@@ -120,11 +120,17 @@ jobs:
           APP_CLIENT_ID: ${{ vars.DEPLOYMENT_STATUS_APP_CLIENT_ID }}
           APP_PRIVATE_KEY: ${{ secrets.DEPLOYMENT_STATUS_APP_PRIVATE_KEY }}
         run: |
+          client_id_present=false
+          private_key_present=false
+          [[ -n "$APP_CLIENT_ID" ]] && client_id_present=true
+          [[ -n "$APP_PRIVATE_KEY" ]] && private_key_present=true
+          echo "client_id_present=${client_id_present}" >> "$GITHUB_OUTPUT"
+          echo "private_key_present=${private_key_present}" >> "$GITHUB_OUTPUT"
           if [[ -n "$APP_CLIENT_ID" && -n "$APP_PRIVATE_KEY" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Deployment reporting skipped; configure the documented GitHub App credentials."
+            echo "::warning::Deployment reporting skipped; client ID present=${client_id_present}, private key present=${private_key_present}."
           fi
       - id: version
         if: steps.configuration.outputs.configured == 'true'
