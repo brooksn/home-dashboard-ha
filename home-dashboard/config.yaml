@@ -1,5 +1,5 @@
 name: Home Dashboard
-version: 0.1.3
+version: 0.2.0
 slug: home_dashboard
 description: Fullscreen household calendar dashboard for a local Android display.
 url: https://github.com/brooksn/home-dashboard-ha
@@ -18,14 +18,19 @@ ports_description:
   8080/tcp: Dashboard web interface (plain HTTP; use a private Tailscale Service for HTTPS)
 options:
   timezone: America/Los_Angeles
-  calendar_openai_model: gpt-5.4-mini
+  external_url: ""
+  calendar_curation_model: gpt-5.6-terra
+  calendar_summary_model: gpt-5.6-luna
 schema:
   timezone: str
   viewer_password: password
   admin_password: password
   google_client_id: str
   google_client_secret: password
-  google_refresh_token: password
+  external_url: str?
+  google_refresh_token: password?
   openai_api_key: password?
+  calendar_curation_model: str?
+  calendar_summary_model: str?
   calendar_openai_model: str?
 stage: experimental

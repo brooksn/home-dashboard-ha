@@ -6,16 +6,20 @@ Home Dashboard is a fullscreen household calendar display for a trusted local-ne
 
 1. Configure Home Assistant with credentials for the private `ghcr.io` registry.
 2. Add `https://github.com/brooksn/home-dashboard-ha` in **Settings → Apps → App Store → ⋮ → Repositories**.
-3. Before saving the app configuration, generate a Google Calendar read-only refresh token with the OAuth bootstrap helper from the private source checkout. A Google OAuth client JSON supplies the client ID and secret, not the refresh token.
-4. Install **Home Dashboard**, enter the required masked options (viewer password, administrator password, Google client ID, Google client secret, and Google refresh token), and start it. The OpenAI key and model are optional.
-5. Open `http://<home-assistant-host>:8088/` on the trusted LAN. For Android browser PWA installation, configure the private Tailscale HTTPS endpoint below instead.
+3. In Google Cloud, create a Web OAuth client, enable Google Calendar API, and register `https://<your-private-tailscale-name>/api/admin/google/oauth/callback` as its exact redirect URI.
+4. Install **Home Dashboard**, enter viewer/admin passwords, Google client ID/secret, and `external_url` set to the matching Tailscale HTTPS origin. The OpenAI key is optional.
+5. Open `/admin/calendar` at that HTTPS address, connect each household Google account, select calendars, then open the trusted LAN display URL on the tablet.
 
 The app stores its SQLite database and session-secret material in its Supervisor-managed `/data` directory, so they persist through restarts and image updates.
+
+## Backup and restore
+
+Use Home Assistant's normal app backup flow to preserve `/data`, including selected calendars, cached materialized events, and refresh tokens. Restore the app backup before starting a replacement instance; if the database is intentionally discarded, reconnect Google accounts and select calendars again.
 
 ## Security
 
 - This app deliberately serves plain HTTP only on a trusted LAN. Do not expose port 8088 to the internet or through a public tunnel.
-- Google Calendar credentials and passwords are stored as Home Assistant masked options and are never part of this repository or the browser bundle.
+- Google client credentials and passwords are Home Assistant masked options. OAuth refresh tokens live only in the mode-0600 `/data` database and never reach the browser bundle.
 - The image is private; Home Assistant must be authenticated to `ghcr.io` before installation.
 
 ## Private Tailscale HTTPS endpoint

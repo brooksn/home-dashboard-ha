@@ -12,6 +12,9 @@ configuration:
     name: Google client ID
   google_client_secret:
     name: Google client secret
+  external_url:
+    name: Private HTTPS dashboard URL
+    description: Exact Tailscale HTTPS origin used for the Google OAuth callback.
   google_refresh_token:
     name: Google refresh token
   openai_api_key:
@@ -19,4 +22,10 @@ configuration:
     description: Optional key for calendar coordination.
   calendar_openai_model:
     name: OpenAI model
-    description: Optional model override for calendar coordination.
+    description: Legacy fallback model used only when the new model options are unset.
+  calendar_curation_model:
+    name: Calendar curation model
+    description: Optional model for grouping, filtering, and formatting visible events.
+  calendar_summary_model:
+    name: Calendar summary model
+    description: Optional model for the one-sentence daily summary.
