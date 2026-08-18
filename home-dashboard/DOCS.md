@@ -7,10 +7,10 @@ Home Dashboard is a fullscreen household calendar display for a trusted local-ne
 1. Configure Home Assistant with credentials for the private `ghcr.io` registry.
 2. Add `https://github.com/brooksn/home-dashboard-ha` in **Settings → Apps → App Store → ⋮ → Repositories**.
 3. In Google Cloud, create a Web OAuth client, enable Google Calendar API, and register `https://<your-private-tailscale-name>/api/admin/google/oauth/callback` as its exact redirect URI.
-4. Install **Home Dashboard**, enter viewer/admin passwords, Google client ID/secret, and `external_url` set to the matching Tailscale HTTPS origin. The OpenAI key is optional.
+4. Install **Home Dashboard**, enter Google client ID/secret and `external_url` set to the matching Tailscale HTTPS origin. The OpenAI key is optional; retained viewer/admin password options are ignored.
 5. Open `/admin/calendar` at that HTTPS address, connect each household Google account, select calendars, then open the trusted LAN display URL on the tablet.
 
-The app stores its SQLite database and session-secret material in its Supervisor-managed `/data` directory, so they persist through restarts and image updates.
+The app stores its SQLite database in its Supervisor-managed `/data` directory, so it persists through restarts and image updates.
 
 ## Backup and restore
 
@@ -18,8 +18,8 @@ Use Home Assistant's normal app backup flow to preserve `/data`, including selec
 
 ## Security
 
-- This app deliberately serves plain HTTP only on a trusted LAN. Do not expose port 8088 to the internet or through a public tunnel.
-- Google client credentials and passwords are Home Assistant masked options. OAuth refresh tokens live only in the mode-0600 `/data` database and never reach the browser bundle.
+- This app has no application password: every route relies on the private Tailscale network. Do not expose port 8088 to the internet or through a public tunnel.
+- Google client credentials remain Home Assistant masked options. OAuth refresh tokens live only in the mode-0600 `/data` database and never reach the browser bundle.
 - The image is private; Home Assistant must be authenticated to `ghcr.io` before installation.
 
 ## Private Tailscale HTTPS endpoint

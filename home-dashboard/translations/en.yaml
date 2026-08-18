@@ -3,11 +3,11 @@ configuration:
     name: Timezone
     description: IANA timezone used for calendar rendering.
   viewer_password:
-    name: Viewer password
-    description: Password for the dashboard display.
+    name: Legacy viewer password
+    description: Retained for configuration compatibility; no longer used.
   admin_password:
-    name: Administrator password
-    description: Password for calendar administration.
+    name: Legacy administrator password
+    description: Retained for configuration compatibility; no longer used.
   google_client_id:
     name: Google client ID
   google_client_secret:
