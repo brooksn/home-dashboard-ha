@@ -1,57 +1,35 @@
 # Home Dashboard
 
-Home Dashboard is a fullscreen, private, read-only Google Calendar display for a household tablet.
+Home Dashboard is a private, read-only Google Calendar display for a household tablet. Its database, OAuth refresh tokens, selected calendars, and cached events persist in `/data`.
 
-## Install
+## Quick setup
 
-1. Configure Home Assistant with credentials for the private `ghcr.io` registry.
-2. Add `https://github.com/brooksn/home-dashboard-ha` in **Settings → Apps → App Store → ⋮ → Repositories**.
-3. In Google Cloud, create a Web OAuth client, enable Google Calendar API, and register `https://home-dashboard.tailab0c1.ts.net/api/admin/google/oauth/callback` as its exact redirect URI.
-4. Install **Home Dashboard**, enter the Google client ID/secret, and set `external_url` to `https://home-dashboard.tailab0c1.ts.net`. Add an OpenAI API key only for AI curation and daily summaries.
-5. Open `https://home-dashboard.tailab0c1.ts.net/admin/calendar`, connect Google, select calendars, assign **Brooks personal**, **Brooks work**, or **Rose**, then save.
+1. Add `https://github.com/brooksn/home-dashboard-ha` in the Home Assistant App Store and ensure Home Assistant can pull the private `ghcr.io` image.
+2. In Google Cloud, create a **Web application** OAuth client with this exact redirect URI: `https://home-dashboard.tailab0c1.ts.net/api/admin/google/oauth/callback`.
+3. Configure the app with the Google client ID/secret and `external_url` set to `https://home-dashboard.tailab0c1.ts.net`. Add an OpenAI API key only if the week and month AI calendar projections and summaries are wanted.
+4. Open `https://home-dashboard.tailab0c1.ts.net/admin/calendar`, connect Google, select calendars, assign their household role, and save. Add Brooks and Rose email aliases to identify shared invitations; the app stores only the resulting household-participation flags, not attendee lists.
 
-The app stores its database, refresh tokens, selected calendars, and cached events in Supervisor-managed `/data`. Nearby, back-to-back, and overlapping events for the same person are shown as one busy block, even when AI processing is unavailable.
+The dashboard groups overlapping, back-to-back, and ≤30-minute-gap events for the same person into one busy block. Today and Week render those blocks on a proportional Rose/Brooks timeline, with shared events crossing both lanes; Month preserves the same ownership and complete time range in compact cards. It remains useful if the AI key is absent or a model call fails.
 
-## Backup and restore
+## Operations
 
-Use Home Assistant's normal app backup flow to preserve `/data`, including selected calendars, cached materialized events, and refresh tokens. Restore the app backup before starting a replacement instance; if the database is intentionally discarded, reconnect Google accounts and select calendars again.
+- Restore `/data` through Home Assistant's normal backup flow; reconnect Google only when intentionally starting with an empty database.
+- The dashboard keeps one lightweight update stream open while visible. It refetches after a derivation lands, with an hourly recovery refresh and a refresh on return to the foreground. Refetching is cheap: views are assembled from stored data and answered with an `ETag`, so an unchanged view returns `304`.
+- A tap, swipe, pointer move, mouse wheel, or keyboard press reports local activity to Home Assistant through the App's server. The browser sends no coordinates, keys, or other input details. Reports are limited to one per ten seconds with a final trailing report, and restart the existing `script.apolosign_hold_touch_presence` 45-second hold so the tablet's bright/dim automations follow direct interaction. This requires that script (and its `input_boolean.apolosign_touch_presence` helper) to exist in Home Assistant.
+- Open `/admin/system` for the running build version, sync attempt/success freshness, derivation queue, AI integration status, today's model spend, recent errors, and a read-only activity/raw journal.
+- Week and month each have a calendar-projection prompt plus a summary prompt. The projection can filter, rename, combine, and deduplicate source events through strict JSON decisions; Go retains authority over dates, times, ranges, and view layout. A calendar marked **Garbage pickup** is excluded from schedules; its own prompt classifies each pickup as recycling/compost or recycling/compost/trash for the icons at the top of week and month days. Each prompt defaults to `gpt-5.6-luna`; setting **Escalates to** retries validator-rejected answers on a second model and charges that call against the daily ceiling.
+- Open `/admin/ai` to read every model decision. Each row shows the exact input, the exact answer, the prompt revision and model that produced it, and its tokens and latency. Prompts, models, and effort are edited there: saving writes a new revision rather than overwriting, so the previous text and the answers it produced stay readable beside the new ones, and saving an earlier revision's text again rolls back to it. Clearing a row is the only way to recompute an answer — including a rejected or refused one, which is cached like any other so a broken input cannot bill twice.
+- Calendars refresh independently. One account that cannot be reached — an expired or revoked refresh token, most often — no longer stops the household's other calendars from updating; the journal records a `source_failed` entry naming that calendar and the provider's reason, and the run finishes with the calendars that did succeed. Reconnect that account from `/admin/calendar`. It refreshes automatically and can download a safe diagnostic snapshot; it retains 30 days or 2,000 entries, whichever is smaller.
+- A provider failure carries what the provider actually said. The journal names which request failed — `token refresh`, `calendar list`, `events list` — with Google's own reason and message beside the status code, so an expired grant (`invalid_grant`) is distinguishable from a rejected query (`badRequest`) without reading any code. A credential Google will not accept again is classified `reauth_required` rather than the generic `provider`: it never clears on its own, so `/admin/calendar` shows a reconnect prompt and the tablet's footer says **Google access expired — reconnect** instead of a status word.
+- **Calendar health**, at the top of `/admin/calendar`, is the page to open when a surface has gone blank. Per calendar it reports the last refresh and the last success, the provider's reason and how long a failure has been repeating, how many events are stored and over what span, and — the two numbers that decide whether anything renders — how many of them the week and month views can currently see. A calendar that syncs cleanly and holds nothing, such as an imported feed that stopped publishing, is called out as its own state rather than looking healthy.
+- A repeating sync outcome is journaled once, then at most hourly, and a scheduled tick no longer records that it queued itself. A failing sync wrote seven entries every five minutes — 2,016 a day against a 2,000-entry journal — so a persistent failure used to evict its own onset, and every other category's history, within about a day. Anything that changes (a calendar recovering, a different reason, a tick that actually moved events) is still written immediately, and every suppressed attempt is still counted against that calendar's failure total on **Calendar health**. Sync freshness on `/admin/system` and the tablet footer is read from the calendars themselves, not from the journal, so collapsing entries cannot make a healthy dashboard look stale.
+- A failed model call is recorded with a specific reason. `api_status_*` is the provider's own rejection (the detail carries its status, type, code, and parameter), `timeout` and `api_unreachable` are transport problems, `model_refused`/`response_incomplete`/`empty_output` mean the call returned nothing usable, and `invalid_json` plus the validator codes (`invalid_decision_fields`, `empty_title`, `text_too_long`, `unsafe_text`) mean the model answered but broke the contract. `budget_exceeded` means the daily ceiling was already spent. Journal details name the provider and the rule only; the full input and output live on `/admin/ai`.
+- **Snack days** come from the classroom rotation compiled into the app, not from a calendar, and no model decides any of it. A snack day shows an apple and what to bring on its month square and in the week's all-day lane, and **Next up** carries it from three mornings ahead — two clear days to shop — until the morning of. The week and month summary prompts are handed the rotation as `snackDays` so the sentence at the top of the dashboard can name it too; the day is spelled out for them in Go, so a summary never depends on a model turning a date into a weekday. Updating the list for a new term is a code change and a release, and `/admin/system` carries a **Snack days** card with the turns remaining and the date the rotation runs out — the end of a term is reported rather than discovered.
+- AI work is requested by opening a week or month view, never by syncing or starting the service. A summary miss queues one view-level derivation and the source calendar remains visible while it is pending.
+- Model spend is bounded by `calendar_daily_call_limit` and `calendar_daily_token_limit`. Past either, calls are refused with `budget_exceeded` and the display falls back to the raw calendar rather than breaking. `/admin/system` shows the day's calls and tokens against both ceilings, counted by the budget itself — so an escalation's second call and a dry run are included even though neither leaves a derivation row.
+- Only an answer is stored. A request the provider actually served — an answer, a refusal, a truncated response, a rejection by the validator — is cached, so a bad input cannot bill twice. A request it never served — `budget_exceeded`, `timeout`, `api_unreachable`, any `api_status_*` — is not: it stays queued and is tried again. This is what makes topping up an account, fixing a key, or waiting out an outage take effect on its own; before it, those failures cached like answers and the events behind them rendered raw permanently. An upgrade clears any such rows an earlier version left behind.
+- While nothing is being served, the queue slows from one job a second to one every few minutes, and the journal records one `deferred` entry per reason rather than one per event. A rejected key fails identically for every queued event, so there is nothing to learn from the three hundredth attempt.
+- Releases publish the private image and update App Store metadata when the release handoff credentials are configured. Otherwise refresh the App Store and apply the metadata update manually.
+- Access requires the private Tailscale network. Do not expose port `8088`, use Funnel, or put the app behind a public tunnel.
 
-## Security
-
-- This app has no application password: every route relies on the private Tailscale network. Do not expose port 8088 to the internet or through a public tunnel.
-- Google client credentials remain Home Assistant masked options. OAuth refresh tokens live only in the mode-0600 `/data` database and never reach the browser bundle.
-- The image is private; Home Assistant must be authenticated to `ghcr.io` before installation.
-
-## Private Tailscale HTTPS endpoint
-
-For a private, trusted HTTPS origin, use the [Tailscale with features](https://github.com/lmagyar/homeassistant-addon-tailscale) Home Assistant app. The stock Tailscale app cannot persistently proxy this dashboard's separate port 8088.
-
-1. In the Tailscale admin console, enable **MagicDNS** and **HTTPS certificates** under **DNS**. In **Access controls**, permit the app's tag, for example:
-
-   ```json
-   "tagOwners": {
-     "tag:home-dashboard": ["autogroup:admin"]
-   }
-   ```
-
-2. Configure the feature app with the matching tag and a private service:
-
-   ```yaml
-   advertise_tags:
-     - tag:home-dashboard
-   services:
-     - name: svc:home-dashboard
-       target: http://127.0.0.1:8088
-       protocol: https
-       port: 443
-       path: /
-   ```
-
-3. In the console's **Services** area, set the `svc:home-dashboard` required port to `tcp:443`, then approve the tagged Home Assistant node as service host if prompted. This is the TLS listener; the service target stays on `8088`.
-4. Restart the feature app and browse to `https://home-dashboard.tailab0c1.ts.net/` from a tablet connected to the tailnet. Do not enable Funnel.
-
-The app configuration persists and is reapplied on Home Assistant restarts, so no SSH startup script is needed. The original `:8088` endpoint remains plain HTTP and LAN-only.
-
-## Updates
-
-Each dashboard release publishes a signed private image. When the source repository's metadata-handoff credentials are configured, it updates this app metadata and triggers a private GitHub Actions workflow. The workflow refreshes `update.home_dashboard_update`, installs the expected version, and verifies it before marking the source release deployed. Home Assistant retains `/data` through the image update.
+See the [README](README.md) for the complete private Tailscale Service setup and release procedure.

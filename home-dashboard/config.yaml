@@ -1,5 +1,5 @@
 name: Home Dashboard
-version: 0.2.59
+version: 0.2.61
 slug: home_dashboard
 description: Fullscreen household calendar dashboard for a local Android display.
 url: https://github.com/brooksn/home-dashboard-ha
@@ -9,8 +9,10 @@ arch:
   - aarch64
 startup: application
 boot: auto
-# The private image supplies s6-overlay as the container init.
+# The Home Assistant base image supplies s6-overlay as PID 1.
 init: false
+# The server uses the Supervisor-managed Core API proxy only to restart the
+# fixed ApoloSign touch-presence script. The token never reaches the browser.
 homeassistant_api: true
 webui: http://[HOST]:[PORT:8080]/
 ports:
@@ -20,18 +22,15 @@ ports_description:
 options:
   timezone: America/Los_Angeles
   external_url: ""
-  calendar_curation_model: gpt-5.6-terra
-  calendar_summary_model: gpt-5.6-luna
+  calendar_daily_call_limit: 400
+  calendar_daily_token_limit: 400000
 schema:
   timezone: str
-  viewer_password: password
-  admin_password: password
   google_client_id: str
   google_client_secret: password
   external_url: str?
   google_refresh_token: password?
   openai_api_key: password?
-  calendar_curation_model: str?
-  calendar_summary_model: str?
-  calendar_openai_model: str?
+  calendar_daily_call_limit: int?
+  calendar_daily_token_limit: int?
 stage: experimental

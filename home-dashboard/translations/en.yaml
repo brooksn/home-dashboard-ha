@@ -1,31 +1,24 @@
 configuration:
   timezone:
-    name: Timezone
-    description: IANA timezone used for calendar rendering.
-  viewer_password:
-    name: Legacy viewer password
-    description: Retained for configuration compatibility; no longer used.
-  admin_password:
-    name: Legacy administrator password
-    description: Retained for configuration compatibility; no longer used.
+    name: Time zone
+    description: IANA time zone used for household calendar times.
   google_client_id:
-    name: Google client ID
+    name: Google OAuth client ID
   google_client_secret:
-    name: Google client secret
+    name: Google OAuth client secret
   external_url:
     name: Private HTTPS dashboard URL
     description: Exact Tailscale HTTPS origin used for the Google OAuth callback.
   google_refresh_token:
-    name: Google refresh token
+    name: Google Calendar refresh token
   openai_api_key:
     name: OpenAI API key
-    description: Optional key for calendar coordination.
-  calendar_openai_model:
-    name: OpenAI model
-    description: Legacy fallback model used only when the new model options are unset.
-  calendar_curation_model:
-    name: Calendar curation model
-    description: Optional model for grouping, filtering, and formatting visible events.
-  calendar_summary_model:
-    name: Calendar summary model
-    description: Optional model for the one-sentence daily summary.
+    description: Optional. Enables AI calendar display projections.
+network:
+  8080/TCP: Dashboard web interface (LAN only)
+  calendar_daily_call_limit:
+    name: Daily model call limit
+    description: Model calls allowed per day before the dashboard falls back to the raw calendar. 0 removes the ceiling.
+  calendar_daily_token_limit:
+    name: Daily model token limit
+    description: Tokens allowed per day before the dashboard falls back to the raw calendar. 0 removes the ceiling.
