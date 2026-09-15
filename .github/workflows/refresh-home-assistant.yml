@@ -4,25 +4,27 @@ on:
   push:
     branches: [main]
     paths:
-      - home-dashboard/config.yaml
+      - home-dashboard/**
   workflow_dispatch:
 
 permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: home-dashboard-install
+  cancel-in-progress: false
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.value }}
     env:
       HOME_ASSISTANT_URL: ${{ secrets.HOME_ASSISTANT_URL }}
       HOME_ASSISTANT_TOKEN: ${{ secrets.HOME_ASSISTANT_TOKEN }}
       TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
       TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - id: version
         name: Read expected app version
         run: echo "value=$(awk '/^version:/{print $2; exit}' home-dashboard/config.yaml)" >> "$GITHUB_OUTPUT"
@@ -34,7 +36,7 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Home Assistant refresh skipped; configure the documented GitHub Secrets."
+            echo "::error::Home Assistant install requires the documented GitHub Secrets."
           fi
       - name: Join the tailnet
         if: steps.configuration.outputs.configured == 'true'
@@ -46,6 +48,7 @@ jobs:
       - id: install
         name: Discover and install Home Dashboard
         if: steps.configuration.outputs.configured == 'true'
+        continue-on-error: true
         shell: bash
         env:
           EXPECTED_VERSION: ${{ steps.version.outputs.value }}
@@ -68,22 +71,25 @@ jobs:
               "${api_base}/states/${entity_id}"
           }
 
-          for attempt in {1..24}; do
-            refresh_update
+          latest=""
+          for attempt in {1..60}; do
+            if (( attempt == 1 || (attempt - 1) % 5 == 0 )); then
+              refresh_update
+            fi
             state=$(update_state)
             installed=$(jq -r '.attributes.installed_version // empty' <<<"$state")
             latest=$(jq -r '.attributes.latest_version // empty' <<<"$state")
-            echo "discovery ${attempt}/24: installed=${installed:-unknown} latest=${latest:-unknown} expected=${EXPECTED_VERSION}"
+            echo "discovery ${attempt}/60: installed=${installed:-unknown} latest=${latest:-unknown} expected=${EXPECTED_VERSION}"
             if [[ "$installed" == "$EXPECTED_VERSION" ]]; then
               exit 0
             fi
             if [[ "$latest" == "$EXPECTED_VERSION" ]]; then
               break
             fi
-            sleep 15
+            sleep 3
           done
 
-          if [[ "${latest:-}" != "$EXPECTED_VERSION" ]]; then
+          if [[ "$latest" != "$EXPECTED_VERSION" ]]; then
             echo "Home Assistant did not discover ${EXPECTED_VERSION}" >&2
             exit 1
           fi
@@ -94,50 +100,35 @@ jobs:
             --data "{\"entity_id\":\"${entity_id}\"}" \
             "${api_base}/services/update/install" >/dev/null
 
-          for attempt in {1..40}; do
+          for attempt in {1..100}; do
             state=$(update_state)
             installed=$(jq -r '.attributes.installed_version // empty' <<<"$state")
             latest=$(jq -r '.attributes.latest_version // empty' <<<"$state")
-            echo "installation ${attempt}/40: installed=${installed:-unknown} latest=${latest:-unknown} expected=${EXPECTED_VERSION}"
+            echo "installation ${attempt}/100: installed=${installed:-unknown} latest=${latest:-unknown} expected=${EXPECTED_VERSION}"
             if [[ "$installed" == "$EXPECTED_VERSION" ]]; then
               exit 0
             fi
-            sleep 15
+            sleep 3
           done
 
           echo "Home Assistant did not install ${EXPECTED_VERSION}" >&2
           exit 1
 
-  report:
-    needs: refresh
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - id: configuration
+      - id: reporting-configuration
+        if: always()
         name: Check deployment reporting configuration
         env:
           APP_CLIENT_ID: ${{ vars.DEPLOYMENT_STATUS_APP_CLIENT_ID }}
           APP_PRIVATE_KEY: ${{ secrets.DEPLOYMENT_STATUS_APP_PRIVATE_KEY }}
         run: |
-          client_id_present=false
-          private_key_present=false
-          [[ -n "$APP_CLIENT_ID" ]] && client_id_present=true
-          [[ -n "$APP_PRIVATE_KEY" ]] && private_key_present=true
-          echo "client_id_present=${client_id_present}" >> "$GITHUB_OUTPUT"
-          echo "private_key_present=${private_key_present}" >> "$GITHUB_OUTPUT"
           if [[ -n "$APP_CLIENT_ID" && -n "$APP_PRIVATE_KEY" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Deployment reporting skipped; client ID present=${client_id_present}, private key present=${private_key_present}."
+            echo "::warning::Deployment reporting skipped because its GitHub App credentials are incomplete."
           fi
-      - id: version
-        if: steps.configuration.outputs.configured == 'true'
-        name: Read expected app version
-        run: echo "value=$(awk '/^version:/{print $2; exit}' home-dashboard/config.yaml)" >> "$GITHUB_OUTPUT"
       - id: reporter-token
-        if: steps.configuration.outputs.configured == 'true'
+        if: always() && steps.reporting-configuration.outputs.configured == 'true'
         name: Create deployment-status token
         uses: actions/create-github-app-token@v3
         with:
@@ -147,31 +138,33 @@ jobs:
           repositories: home-dashboard
           permission-deployments: write
       - name: Report final deployment status
-        if: steps.configuration.outputs.configured == 'true'
+        if: always() && steps.reporting-configuration.outputs.configured == 'true'
         env:
           GH_TOKEN: ${{ steps.reporter-token.outputs.token }}
           VERSION: ${{ steps.version.outputs.value }}
-          REFRESH_RESULT: ${{ needs.refresh.result }}
+          HA_CONFIGURED: ${{ steps.configuration.outputs.configured }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
           LOG_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           deployment_id=""
-          for attempt in {1..12}; do
+          for attempt in {1..30}; do
             deployment_id=$(gh api --method GET "repos/${GITHUB_REPOSITORY_OWNER}/home-dashboard/deployments?ref=v${VERSION}&environment=Home%20Assistant&per_page=1" --jq '.[0].id // empty')
-            if [[ -n "$deployment_id" ]]; then
-              break
-            fi
-            sleep 10
+            [[ -n "$deployment_id" ]] && break
+            sleep 2
           done
 
           if [[ -z "$deployment_id" ]]; then
-            echo "No Home Assistant deployment found for v${VERSION}" >&2
-            exit 1
+            echo "No Home Assistant deployment found for v${VERSION}; status reporting skipped." >&2
+            exit 0
           fi
 
-          if [[ "$REFRESH_RESULT" == "success" ]]; then
+          if [[ "$HA_CONFIGURED" == "true" && "$INSTALL_OUTCOME" == "success" ]]; then
             state=success
             description="Home Assistant installed Home Dashboard v${VERSION}."
+          elif [[ "$HA_CONFIGURED" != "true" ]]; then
+            state=failure
+            description="Home Assistant connection is not configured."
           else
             state=failure
             description="Home Assistant did not install Home Dashboard v${VERSION}."
@@ -184,3 +177,10 @@ jobs:
             auto_inactive: false
           }')
           gh api --method POST "repos/${GITHUB_REPOSITORY_OWNER}/home-dashboard/deployments/${deployment_id}/statuses" --input - <<<"$payload"
+      - name: Fail unsuccessful installation
+        if: always()
+        env:
+          HA_CONFIGURED: ${{ steps.configuration.outputs.configured }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+        run: |
+          [[ "$HA_CONFIGURED" == "true" && "$INSTALL_OUTCOME" == "success" ]]
